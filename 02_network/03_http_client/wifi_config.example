@@ -1,0 +1,4 @@
+# Network name (SSID)
+SSID = "YOUR_WIFI_NAME"
+# Wi-fi password
+PASSWORD = "YOUR_WIFI_PASSWORD"
