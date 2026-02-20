@@ -28,37 +28,81 @@ def connect_wifi():
     print("IP:", wlan.ifconfig()[0])
     return wlan
 
-def start_server():
-    addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1]
+def handle_client(client):
+    request = client.recv(1024)
     
-    server = socket.socket()
-    server.bind(addr)
-    server.listen(1)
+    if not request:
+        client.close()
+        return
     
-    print("Listening on", addr)
+    request_str = request.decode("utf-8")
+    print("Raw request:")
+    print(request_str)
     
-    while True:
-        client, addr = server.accept()
-        print("Client connected from", addr)
-        
-        request = client.recv(1024)
-        print("Request:") #b'GET / HTTP/1.1\r\nHost: 192.168.1.62\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
-        print(request)
-        
-        response = """HTTP/1.1 200 OK
+    request_line = request_str.split("\r\n")[0]
+    print("Request line:", request_line)
+    
+    parts = request_line.split()
+    
+    if len(parts) < 2:
+        client.close()
+        return
+    
+    method = parts[0]
+    path = parts[1]
+    
+    print(f"Method: {method}")
+    print(f"Path: {path}")
+    
+    # Simple routing
+    if path == "/":
+        body = "<h1>Home page</h1>"
+    elif path == "/hello":
+        body = "<h1>Hello page</h1>"
+    else:
+        body = "<h1>404 Not found</h1>"
+    
+    response = f"""HTTP/1.1 200 OK
         Content-Type: text/html
         Connection: close
 
         <html>
             <head><title>ESP32 Server</title></head>
             <body>
-                <h1>Hello from ESP32!</h1>
+                {body}
             </body>
         </html>
         """
-        client.send(response)
-        client.close()
+    
+    client.send(response)
+    client.close()
 
+
+def start_server():
+    addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1]
+    
+    server = socket.socket()
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(addr)
+    server.listen(1)
+    
+    print("Listening on", addr)
+    
+    try:
+        while True:
+            client, addr = server.accept()
+            print("Client connected:", addr)
+            try:
+                handle_client(client)
+            except Exception as e:
+                print("Client error:", e)
+            finally:
+                client.close()
+    except KeyboardInterrupt:
+        print("Server stopped by user")
+    finally:
+        print("Closing server socket")
+        server.close()
 
 def main():
     wlan = connect_wifi()
@@ -66,8 +110,8 @@ def main():
         return
     try:
         start_server()
-    except KeyboardInterrupt:
-        print("Server stopped by user")
+    except Exception as e:
+        print("Server error:", e)
 
 if __name__ == "__main__":
     main()
