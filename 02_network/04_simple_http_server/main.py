@@ -28,6 +28,34 @@ def connect_wifi():
     print("IP:", wlan.ifconfig()[0])
     return wlan
 
+def home_handler(params):
+    return 200, "text/html", "<h1>Home page</h1>"
+def hello_handler(params):
+    name = params.get("name", "Guest")
+    return 200, "text/html", f"<h1>Hello {name}</h1>"
+def not_found_handler(params):
+    return 404, "text/html", "<h1>404 Not found</h1>"
+
+ROUTES = {
+    "/": home_handler,
+    "/hello": hello_handler,
+}
+
+def parse_query(query_string):
+    params = {}
+    
+    if not query_string:
+        return params
+    
+    pairs = query_string.split("&")
+    
+    for pair in pairs:
+        if "=" in pair:
+            key, value = pair.split("=", 1)
+            params[key] = value
+    
+    return params
+
 def handle_client(client):
     request = client.recv(1024)
     
@@ -49,21 +77,23 @@ def handle_client(client):
         return
     
     method = parts[0]
-    path = parts[1]
+    full_path = parts[1]
     
-    print(f"Method: {method}")
-    print(f"Path: {path}")
-    
-    # Simple routing
-    if path == "/":
-        body = "<h1>Home page</h1>"
-    elif path == "/hello":
-        body = "<h1>Hello page</h1>"
+    if "?" in full_path:
+        path, query_string = full_path.split("?", 1)
     else:
-        body = "<h1>404 Not found</h1>"
+        path = full_path
+        query_string = ""
     
-    response = f"""HTTP/1.1 200 OK
-        Content-Type: text/html
+    print(f"Method: {method} | Path: {path}")
+    
+    handler = ROUTES.get(path, not_found_handler)
+    
+    params = parse_query(query_string)
+    status_code, content_type, body = handler(params)
+    
+    response = f"""HTTP/1.1 {status_code} {"OK" if status_code==200 else "Not Found"}
+        Content-Type: {content_type}
         Connection: close
 
         <html>
